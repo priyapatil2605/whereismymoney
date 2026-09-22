@@ -1,6 +1,7 @@
 package com.whereismymoney.backend.entity;
 
 import jakarta.persistence.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -25,6 +26,12 @@ public class Holding {
 
     @Column(name = "average_buy_price", nullable = false, precision = 20, scale = 8)
     private BigDecimal averageBuyPrice;
+
+    @Column(name = "current_price", precision = 20, scale = 8)
+    private BigDecimal currentPrice;
+
+    @Column(name = "last_price_updated_at")
+    private LocalDateTime lastPriceUpdatedAt;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -77,5 +84,29 @@ public class Holding {
 
     public void setAverageBuyPrice(BigDecimal averageBuyPrice) {
         this.averageBuyPrice = averageBuyPrice;
+    }
+
+    public BigDecimal getCurrentPrice() {
+        return currentPrice;
+    }
+
+    public void setCurrentPrice(BigDecimal currentPrice) {
+        this.currentPrice = currentPrice;
+    }
+
+    public LocalDateTime getLastPriceUpdatedAt() {
+        return lastPriceUpdatedAt;
+    }
+
+    public void setLastPriceUpdatedAt(LocalDateTime lastPriceUpdatedAt) {
+        this.lastPriceUpdatedAt = lastPriceUpdatedAt;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
     }
 }

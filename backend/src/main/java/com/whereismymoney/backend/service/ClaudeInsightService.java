@@ -253,9 +253,9 @@ public class ClaudeInsightService
         return """
                 Portfolio ID: %d
                 Transaction count: %d
-                Total transaction volume: ₹%s
-                Total BUY amount: ₹%s
-                Total SELL amount: ₹%s
+Total transaction volume: INR %s
+Total BUY amount: INR %s
+Total SELL amount: INR %s
                 """.formatted(
                 portfolioId,
                 transactions.size(),
