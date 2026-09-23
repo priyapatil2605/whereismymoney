@@ -386,6 +386,18 @@ function Layout({ children }) {
           />
 
           <NavItem
+            to="/portfolio"
+            label="Portfolio"
+            icon="◉"
+          />
+
+          <NavItem
+            to="/ml"
+            label="ML Lab"
+            icon="⌁"
+          />
+
+          <NavItem
             to="/import"
             label="Import Data"
             icon="↑"
@@ -1279,49 +1291,41 @@ function RiskAnalytics() {
 ========================= */
 
 function Backtest() {
-
-  const [portfolio, setPortfolio] = useState(null);
+  const [symbol, setSymbol] = useState("AAPL");
+  const [period, setPeriod] = useState("5y");
+  const [initialCapital, setInitialCapital] = useState("100000");
+  const [transactionCostBps, setTransactionCostBps] = useState("10");
+  const [fastWindow, setFastWindow] = useState("20");
+  const [slowWindow, setSlowWindow] = useState("50");
   const [result, setResult] = useState(null);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    ensurePortfolio()
-      .then(setPortfolio)
-      .catch((e) => setError(e.message));
-  }, []);
-
-  async function runBacktest() {
-
-    if (!portfolio) {
-      return;
-    }
-
+  async function runBacktest(e) {
+    e?.preventDefault();
     setLoading(true);
     setError("");
     setResult(null);
 
     try {
+      const query = new URLSearchParams({
+        period,
+        initialCapital,
+        transactionCostBps,
+        fastWindow,
+        slowWindow,
+      });
 
-      const data =
-        await apiRequest(
-          `/api/backtest/${portfolio.id}`,
-          {
-            method: "POST",
-          }
-        );
+      const data = await apiRequest(
+        `/api/ml/advanced-backtest/${encodeURIComponent(symbol.toUpperCase())}?${query.toString()}`,
+        { method: "POST", body: "{}" }
+      );
 
       setResult(data);
-
     } catch (err) {
-
       setError(err.message);
-
     } finally {
-
       setLoading(false);
-
     }
   }
 
@@ -1329,128 +1333,426 @@ function Backtest() {
     <>
       <PageHeader
         title="Backtesting"
-        subtitle="Evaluate historical transaction performance"
+        subtitle="Test a historical SMA crossover strategy with transaction costs"
       />
 
-      {error && (
-        <div className="error-box">
-          {error}
-        </div>
-      )}
+      {error && <div className="error-box">{error}</div>}
 
-      <section className="panel backtest-panel">
+      <section className="panel">
+        <PanelTitle title="Advanced Backtest Configuration" />
 
-        <div className="backtest-intro">
-
+        <form className="backtest-form" onSubmit={runBacktest}>
           <div>
-            <span className="muted">
-              HISTORICAL STRATEGY
-            </span>
-
-            <h2>
-              Transaction Replay
-            </h2>
-
-            <p>
-              Replays historical portfolio transactions
-              using a starting capital of ₹100,000.
-            </p>
+            <label>Symbol</label>
+            <input
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value)}
+              placeholder="AAPL"
+              required
+            />
           </div>
 
-          <button
-            className="btn btn-primary btn-large"
-            onClick={runBacktest}
-            disabled={loading}
-          >
-            {loading
-              ? "Running..."
-              : "Run Backtest"}
+          <div>
+            <label>Period</label>
+            <select value={period} onChange={(e) => setPeriod(e.target.value)}>
+              <option value="1y">1 Year</option>
+              <option value="3y">3 Years</option>
+              <option value="5y">5 Years</option>
+              <option value="10y">10 Years</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Initial Capital</label>
+            <input
+              type="number"
+              min="1"
+              value={initialCapital}
+              onChange={(e) => setInitialCapital(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Transaction Cost (bps)</label>
+            <input
+              type="number"
+              min="0"
+              value={transactionCostBps}
+              onChange={(e) => setTransactionCostBps(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Fast SMA</label>
+            <input
+              type="number"
+              min="2"
+              value={fastWindow}
+              onChange={(e) => setFastWindow(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label>Slow SMA</label>
+            <input
+              type="number"
+              min="3"
+              value={slowWindow}
+              onChange={(e) => setSlowWindow(e.target.value)}
+            />
+          </div>
+
+          <button className="btn btn-primary btn-large" disabled={loading}>
+            {loading ? "Running..." : "Run Advanced Backtest"}
           </button>
-
-        </div>
-
+        </form>
       </section>
 
       {result && (
+        <>
+          <div className="portfolio-banner">
+            <div>
+              <span className="muted">STRATEGY</span>
+              <h2>{result.symbol} · SMA {result.strategy.fast_window}/{result.strategy.slow_window}</h2>
+            </div>
+            <div className="portfolio-id">
+              {result.data?.start_date} → {result.data?.end_date}
+            </div>
+          </div>
 
-        <div className="stats-grid">
+          <div className="stats-grid">
+            <StatCard label="Final Value" value={money(result.metrics?.final_value)} />
+            <StatCard label="Total Return" value={`${number(result.metrics?.total_return_percent)}%`} type={result.metrics?.total_return >= 0 ? "positive" : "negative"} />
+            <StatCard label="CAGR" value={`${number(result.metrics?.cagr_percent)}%`} />
+            <StatCard label="Sharpe Ratio" value={number(result.metrics?.sharpe_ratio)} />
+            <StatCard label="Max Drawdown" value={`${number(result.metrics?.max_drawdown_percent)}%`} type="negative" />
+            <StatCard label="Trade Count" value={number(result.metrics?.trade_count)} />
+            <StatCard label="Transaction Costs" value={money(result.metrics?.total_transaction_costs)} />
+            <StatCard label="Win Rate" value={`${number(result.metrics?.win_rate_percent)}%`} />
+          </div>
 
-          <StatCard
-            label="Starting Capital"
-            value={money(
-              result.startingCapital
-            )}
-          />
+          <section className="panel">
+            <PanelTitle title="Strategy vs Buy & Hold" />
 
-          <StatCard
-            label="Ending Capital"
-            value={money(
-              result.endingCapital
-            )}
-          />
+            <div className="comparison-grid">
+              <div className="comparison-card">
+                <span>STRATEGY</span>
+                <strong>{number(result.metrics?.total_return_percent)}%</strong>
+                <small>{money(result.metrics?.final_value)}</small>
+              </div>
 
-          <StatCard
-            label="Total Return"
-            value={money(
-              result.totalReturn
-            )}
-          />
+              <div className="comparison-card">
+                <span>BUY & HOLD</span>
+                <strong>{number(result.benchmark?.total_return_percent)}%</strong>
+                <small>{money(result.benchmark?.final_value)}</small>
+              </div>
 
-          <StatCard
-            label="Return %"
-            value={
-              number(
-                result.returnPercentage
-              ) + "%"
-            }
-          />
+              <div className="comparison-card">
+                <span>DIFFERENCE</span>
+                <strong>{number(result.comparison?.strategy_minus_benchmark_percent)}%</strong>
+                <small>Strategy minus benchmark</small>
+              </div>
+            </div>
 
-          <StatCard
-            label="Trades"
-            value={result.trades}
-          />
-
-        </div>
+            <div className="backtest-note">
+              Historical backtest results are descriptive. They do not establish future performance.
+            </div>
+          </section>
+        </>
       )}
 
       <section className="panel">
-
         <PanelTitle title="Backtesting Pipeline" />
-
         <div className="pipeline">
-
-          <PipelineStep
-            number="01"
-            title="Historical Data"
-          />
-
-          <PipelineStep
-            number="02"
-            title="Strategy"
-          />
-
-          <PipelineStep
-            number="03"
-            title="Signals"
-          />
-
-          <PipelineStep
-            number="04"
-            title="Trades"
-          />
-
-          <PipelineStep
-            number="05"
-            title="Portfolio Returns"
-          />
-
-          <PipelineStep
-            number="06"
-            title="Metrics"
-          />
-
+          <PipelineStep number="01" title="Historical Data" />
+          <PipelineStep number="02" title="SMA Features" />
+          <PipelineStep number="03" title="Signals" />
+          <PipelineStep number="04" title="Trades + Costs" />
+          <PipelineStep number="05" title="Equity Curve" />
+          <PipelineStep number="06" title="Risk Metrics" />
         </div>
+      </section>
+    </>
+  );
+}
 
+/* =========================
+   PORTFOLIO
+========================= */
+
+function Portfolio() {
+  const [portfolio, setPortfolio] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [holdings, setHoldings] = useState([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadPortfolio();
+  }, []);
+
+  async function loadPortfolio() {
+    try {
+      setLoading(true);
+      const p = await ensurePortfolio();
+      setPortfolio(p);
+
+      const [analyticsData, holdingsData] = await Promise.all([
+        apiRequest(`/api/portfolios/${p.id}/analytics`),
+        apiRequest(`/api/holdings/portfolio/${p.id}`).catch(() => []),
+      ]);
+
+      setAnalytics(analyticsData);
+      setHoldings(Array.isArray(holdingsData) ? holdingsData : []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (loading) return <PageLoading />;
+
+  return (
+    <>
+      <PageHeader
+        title="Portfolio"
+        subtitle="Holdings, valuation and allocation analytics"
+      />
+
+      {error && <div className="error-box">{error}</div>}
+
+      <div className="portfolio-banner">
+        <div>
+          <span className="muted">ACTIVE PORTFOLIO</span>
+          <h2>{portfolio?.name || "My Portfolio"}</h2>
+        </div>
+        <div className="portfolio-id">ID #{portfolio?.id}</div>
+      </div>
+
+      <div className="stats-grid">
+        <StatCard label="Cost Basis" value={money(analytics?.totalCost)} />
+        <StatCard label="Market Value" value={money(analytics?.totalMarketValue)} />
+        <StatCard
+          label="Unrealized P/L"
+          value={money(analytics?.unrealizedPnl)}
+          type={Number(analytics?.unrealizedPnl) >= 0 ? "positive" : "negative"}
+        />
+        <StatCard label="P/L %" value={percent(analytics?.unrealizedPnlPercent)} />
+      </div>
+
+      <div className="two-column">
+        <section className="panel">
+          <PanelTitle title="Asset Allocation" />
+
+          {analytics?.allocations?.length ? (
+            <div className="allocation-list">
+              {analytics.allocations.map((item) => (
+                <div className="allocation-row" key={item.assetId}>
+                  <div>
+                    <strong>{item.symbol}</strong>
+                    <span>{item.assetType}</span>
+                  </div>
+                  <div className="allocation-value">
+                    <strong>{money(item.marketValue)}</strong>
+                    <span>{number(item.allocationPercent)}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState text="No holdings have been added yet." />
+          )}
+        </section>
+
+        <section className="panel">
+          <PanelTitle title={`Holdings (${holdings.length})`} />
+
+          {holdings.length === 0 ? (
+            <EmptyState text="No holdings found." />
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th>Quantity</th>
+                    <th>Market Value</th>
+                    <th>P/L</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {holdings.map((h) => (
+                    <tr key={h.id}>
+                      <td>
+                        <strong>{h.symbol || `Asset #${h.assetId}`}</strong>
+                        <div className="table-subtext">{h.assetName || h.assetType || "-"}</div>
+                      </td>
+                      <td>{number(h.quantity)}</td>
+                      <td>{money(h.marketValue)}</td>
+                      <td className={Number(h.unrealizedPnl) >= 0 ? "value-positive" : "value-negative"}>
+                        {money(h.unrealizedPnl)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+    </>
+  );
+}
+
+/* =========================
+   ML LAB
+========================= */
+
+function MLLab() {
+  const [symbol, setSymbol] = useState("AAPL");
+  const [horizon, setHorizon] = useState("1");
+  const [prediction, setPrediction] = useState(null);
+  const [validation, setValidation] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [validationLoading, setValidationLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function predict() {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiRequest(
+        `/api/ml/predict/${encodeURIComponent(symbol.toUpperCase())}?period=5y&horizon=${horizon}`,
+        { method: "POST", body: "{}" }
+      );
+      setPrediction(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function validate() {
+    setValidationLoading(true);
+    setError("");
+    try {
+      const data = await apiRequest(
+        `/api/ml/walk-forward/${encodeURIComponent(symbol.toUpperCase())}`
+      );
+      setValidation(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setValidationLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <PageHeader
+        title="ML Lab"
+        subtitle="XGBoost prediction and walk-forward validation"
+      />
+
+      {error && <div className="error-box">{error}</div>}
+
+      <section className="panel">
+        <PanelTitle title="Market Prediction" />
+
+        <div className="ml-controls">
+          <div>
+            <label>Symbol</label>
+            <input value={symbol} onChange={(e) => setSymbol(e.target.value)} />
+          </div>
+
+          <div>
+            <label>Prediction Horizon</label>
+            <select value={horizon} onChange={(e) => setHorizon(e.target.value)}>
+              <option value="1">1 trading day</option>
+              <option value="5">5 trading days</option>
+              <option value="10">10 trading days</option>
+              <option value="20">20 trading days</option>
+            </select>
+          </div>
+
+          <button className="btn btn-primary" onClick={predict} disabled={loading}>
+            {loading ? "Predicting..." : "Run Prediction"}
+          </button>
+
+          <button className="btn btn-secondary" onClick={validate} disabled={validationLoading}>
+            {validationLoading ? "Validating..." : "Walk-Forward Validation"}
+          </button>
+        </div>
+      </section>
+
+      {prediction && (
+        <div className="two-column">
+          <section className="panel">
+            <PanelTitle title="Latest Prediction" />
+
+            <div className="prediction-hero">
+              <span>PREDICTED DIRECTION</span>
+              <strong>{prediction.direction || prediction.prediction}</strong>
+              <small>
+                Probability Up: {number(Number(prediction.probability_up) * 100)}%
+              </small>
+            </div>
+
+            <div className="feature-grid">
+              {Object.entries(prediction.features || {}).slice(0, 8).map(([key, value]) => (
+                <div className="feature-card" key={key}>
+                  <span>{key}</span>
+                  <strong>{number(value)}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel">
+            <PanelTitle title="SHAP Feature Importance" />
+
+            <div className="shap-list">
+              {Object.entries(prediction.shap_importance || {})
+                .sort((a, b) => Math.abs(Number(b[1])) - Math.abs(Number(a[1])))
+                .slice(0, 8)
+                .map(([key, value]) => (
+                  <div className="shap-row" key={key}>
+                    <span>{key}</span>
+                    <strong>{number(value)}</strong>
+                  </div>
+                ))}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {validation && (
+        <section className="panel">
+          <PanelTitle title="Walk-Forward Validation" />
+          <div className="stats-grid">
+            <StatCard label="Accuracy" value={`${number(Number(validation.accuracy) * 100)}%`} />
+            <StatCard label="Precision" value={`${number(Number(validation.precision) * 100)}%`} />
+            <StatCard label="Recall" value={`${number(Number(validation.recall) * 100)}%`} />
+            <StatCard label="F1 Score" value={`${number(Number(validation.f1) * 100)}%`} />
+          </div>
+          <div className="backtest-note">
+            Validation uses chronological data splits rather than random shuffling.
+          </div>
+        </section>
+      )}
+
+      <section className="panel">
+        <PanelTitle title="ML Pipeline" />
+        <div className="pipeline">
+          <PipelineStep number="01" title="Market Data" />
+          <PipelineStep number="02" title="Feature Engineering" />
+          <PipelineStep number="03" title="XGBoost" />
+          <PipelineStep number="04" title="Walk-Forward" />
+          <PipelineStep number="05" title="SHAP" />
+          <PipelineStep number="06" title="Explainability" />
+        </div>
       </section>
     </>
   );
@@ -2248,6 +2550,28 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Transactions />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/portfolio"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Portfolio />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/ml"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <MLLab />
             </Layout>
           </ProtectedRoute>
         }

@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 from pipeline import (
     download_market_data,
-    prepare_market_features,
+    create_features,
     FEATURE_COLUMNS
 )
 
@@ -78,13 +78,15 @@ def market_data(symbol: str):
 
     try:
 
+        clean_symbol = symbol.upper().strip()
+
         df = download_market_data(
-            symbol.upper(),
+            clean_symbol,
             "5y"
         )
 
         return {
-            "symbol": symbol.upper(),
+            "symbol": clean_symbol,
             "rows": len(df),
             "data": df.reset_index().to_dict(
                 orient="records"
@@ -104,12 +106,16 @@ def features(symbol: str):
 
     try:
 
+        clean_symbol = symbol.upper().strip()
+
         market_df = download_market_data(
-            symbol.upper(),
+            clean_symbol,
             "5y"
         )
 
-        feature_df = prepare_market_features(
+        # market_df is already downloaded,
+        # so create_features() must be used here.
+        feature_df = create_features(
             market_df,
             horizon=1
         )
@@ -121,7 +127,7 @@ def features(symbol: str):
         ]
 
         return {
-            "symbol": symbol.upper(),
+            "symbol": clean_symbol,
             "rows": len(feature_df),
             "features": available_columns,
             "data": feature_df[
@@ -146,12 +152,17 @@ def predict(request: PredictionRequest):
 
     try:
 
+        clean_symbol = request.symbol.upper().strip()
+
         market_df = download_market_data(
-            request.symbol.upper(),
+            clean_symbol,
             request.period
         )
 
-        feature_df = prepare_market_features(
+        # market_df is already downloaded.
+        # Use create_features() instead of
+        # prepare_market_features().
+        feature_df = create_features(
             market_df,
             horizon=request.horizon
         )
@@ -161,7 +172,7 @@ def predict(request: PredictionRequest):
         )
 
         return {
-            "symbol": request.symbol.upper(),
+            "symbol": clean_symbol,
             **result
         }
 
@@ -178,12 +189,16 @@ def walk_forward(symbol: str):
 
     try:
 
+        clean_symbol = symbol.upper().strip()
+
         market_df = download_market_data(
-            symbol.upper(),
+            clean_symbol,
             "5y"
         )
 
-        feature_df = prepare_market_features(
+        # market_df is already downloaded.
+        # Use create_features() here as well.
+        feature_df = create_features(
             market_df,
             horizon=1
         )
@@ -193,7 +208,7 @@ def walk_forward(symbol: str):
         )
 
         return {
-            "symbol": symbol.upper(),
+            "symbol": clean_symbol,
             **result
         }
 
@@ -222,6 +237,8 @@ def advanced_backtest(
                 )
             )
 
+        clean_symbol = request.symbol.upper().strip()
+
         config = BacktestConfig(
             initial_capital=request.initial_capital,
             transaction_cost_bps=(
@@ -232,7 +249,7 @@ def advanced_backtest(
         )
 
         result = run_advanced_backtest(
-            symbol=request.symbol.upper(),
+            symbol=clean_symbol,
             period=request.period,
             config=config
         )
